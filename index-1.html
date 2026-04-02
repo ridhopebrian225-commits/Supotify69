@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Repotify Music</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #080b10;
+    --surface: #0f1520;
+    --card: #141c2b;
+    --border: #1e2d45;
+    --accent: #00e5ff;
+    --accent2: #7c3aed;
+    --text: #e8edf5;
+    --muted: #4a6080;
+    --glow: 0 0 30px rgba(0,229,255,0.25);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 480px;
+  }
+
+  h1 {
+    font-size: 13px;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+    text-transform: uppercase;
+    font-family: 'DM Mono', monospace;
+    font-weight: 300;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h1::before { content: '//'; opacity: 0.4; }
+
+  /* Player Card */
+  .player {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    margin-bottom: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), var(--glow);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .player::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.5;
+  }
+
+  /* Album Art */
+  .art-wrap {
+    position: relative;
+    width: 100%;
+    padding-top: 100%;
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    background: var(--surface);
+  }
+
+  .art-inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 72px;
+    transition: transform 0.6s ease;
+  }
+
+  .art-inner.spinning {
+    animation: spin 8s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .art-overlay {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 30% 70%, rgba(124,58,237,0.3), transparent 60%),
+                radial-gradient(circle at 70% 30%, rgba(0,229,255,0.2), transparent 60%);
+  }
+
+  /* Track Info */
+  .track-info {
+    margin-bottom: 20px;
+  }
+
+  .track-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .track-artist {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  /* Waveform Visualizer */
+  .visualizer {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 40px;
+    margin-bottom: 20px;
+  }
+
+  .bar {
+    flex: 1;
+    background: var(--accent);
+    border-radius: 2px 2px 0 0;
+    opacity: 0.6;
+    transition: height 0.15s ease;
+    min-height: 3px;
+  }
+
+  .bar.active {
+    animation: pulse var(--dur, 0.5s) ease-in-out infinite alternate;
+  }
+
+  @keyframes pulse {
+    from { opacity: 0.4; transform: scaleY(0.3); }
+    to   { opacity: 0.9; transform: scaleY(1); }
+  }
+
+  /* Progress Bar */
+  .progress-wrap {
+    margin-bottom: 8px;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    margin-bottom: 6px;
+    accent-color: var(--accent);
+  }
+
+  .progress-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--accent);
+    cursor: pointer;
+  }
+
+  .time-row {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    margin-top: 20px;
+  }
+
+  .btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 8px;
+    border-radius: 8px;
+    transition: color 0.2s, background 0.2s, transform 0.15s;
+  }
+  .btn:hover { color: var(--text); background: var(--border); }
+  .btn:active { transform: scale(0.92); }
+
+  .btn-play {
+    width: 58px; height: 58px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 22px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 20px rgba(0,229,255,0.4);
+    transition: transform 0.15s, box-shadow 0.2s;
+  }
+  .btn-play:hover { transform: scale(1.08); box-shadow: 0 0 30px rgba(0,229,255,0.6); color: var(--bg); background: var(--accent); }
+
+  /* Volume */
+  .volume-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .volume-row span { font-size: 16px; color: var(--muted); }
+  .volume-slider {
+    flex: 1;
+    height: 3px;
+    accent-color: var(--accent2);
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--border);
+    border-radius: 4px;
+    outline: none;
+  }
+  .volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    background: var(--accent2);
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  /* Upload Button */
+  .upload-area {
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--surface);
+  }
+  .upload-area:hover { border-color: var(--accent); background: var(--card); }
+  .upload-area input { display: none; }
+  .upload-area p { font-size: 13px; color: var(--muted); margin-top: 6px; font-family: 'DM Mono', monospace; }
+  .upload-icon { font-size: 28px; }
+
+  /* Playlist */
+  .playlist {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-top: 12px;
+  }
+
+  .playlist-header {
+    padding: 14px 20px;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .playlist-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid rgba(30,45,69,0.5);
+  }
+  .playlist-item:last-child { border-bottom: none; }
+  .playlist-item:hover { background: rgba(0,229,255,0.04); }
+  .playlist-item.active { background: rgba(0,229,255,0.07); }
+
+  .item-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    width: 18px;
+    text-align: center;
+  }
+  .item-num.playing { color: var(--accent); }
+
+  .item-info { flex: 1; min-width: 0; }
+  .item-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-meta { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .item-dur { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); }
+
+  .empty-list {
+    padding: 32px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--accent);
+    color: var(--bg);
+    padding: 10px 22px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: transform 0.3s ease;
+    z-index: 99;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <h1>Repotify Music</h1>
+
+  <!-- Main Player -->
+  <div class="player">
+    <div class="art-wrap">
+      <div class="art-inner" id="artEmoji">🎵</div>
+      <div class="art-overlay"></div>
+    </div>
+
+    <div class="track-info">
+      <div class="track-title" id="trackTitle">Tidak ada lagu</div>
+      <div class="track-artist" id="trackArtist">— Pilih file audio —</div>
+    </div>
+
+    <!-- Visualizer -->
+    <div class="visualizer" id="visualizer"></div>
+
+    <!-- Progress -->
+    <div class="progress-wrap">
+      <input type="range" class="progress-bar" id="progressBar" min="0" max="100" value="0">
+      <div class="time-row">
+        <span id="currentTime">0:00</span>
+        <span id="totalTime">0:00</span>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <button class="btn" id="shuffleBtn" title="Shuffle" onclick="toggleShuffle()">🔀</button>
+      <button class="btn" onclick="prevTrack()" title="Previous">⏮</button>
+      <button class="btn btn-play" id="playBtn" onclick="togglePlay()">▶</button>
+      <button class="btn" onclick="nextTrack()" title="Next">⏭</button>
+      <button class="btn" id="repeatBtn" title="Repeat" onclick="toggleRepeat()">🔁</button>
+    </div>
+
+    <!-- Volume -->
+    <div class="volume-row">
+      <span>🔈</span>
+      <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80" oninput="setVolume(this.value)">
+      <span>🔊</span>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <label class="upload-area">
+    <input type="file" id="fileInput" accept="audio/*" multiple onchange="loadFiles(this.files)">
+    <div class="upload-icon">🎵</div>
+    <strong>Tambah Musik</strong>
+    <p>Klik atau seret file audio (.mp3, .wav, .ogg, .flac...)</p>
+  </label>
+
+  <!-- Playlist -->
+  <div class="playlist" id="playlistWrap">
+    <div class="playlist-header">Playlist</div>
+    <div class="empty-list" id="emptyMsg">// belum ada lagu ditambahkan</div>
+    <div id="playlistItems"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<audio id="audioEl"></audio>
+
+<script>
+const audio = document.getElementById('audioEl');
+const playBtn = document.getElementById('playBtn');
+const progressBar = document.getElementById('progressBar');
+const currentTimeEl = document.getElementById('currentTime');
+const totalTimeEl = document.getElementById('totalTime');
+const trackTitle = document.getElementById('trackTitle');
+const trackArtist = document.getElementById('trackArtist');
+const artEmoji = document.getElementById('artEmoji');
+const visualizer = document.getElementById('visualizer');
+const playlistItems = document.getElementById('playlistItems');
+const emptyMsg = document.getElementById('emptyMsg');
+
+let playlist = [];
+let currentIndex = -1;
+let shuffle = false;
+let repeat = false;
+let shuffledOrder = [];
+
+const EMOJIS = ['🎵','🎸','🥁','🎹','🎷','🎺','🎻','🪕','🎤','🎧'];
+const COLORS = ['#00e5ff','#7c3aed','#f59e0b','#10b981','#ef4444','#06b6d4'];
+
+// Build visualizer bars
+for (let i = 0; i < 24; i++) {
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  bar.style.height = '3px';
+  visualizer.appendChild(bar);
+}
+const bars = document.querySelectorAll('.bar');
+
+function animateBars(playing) {
+  bars.forEach((b, i) => {
+    if (playing) {
+      b.classList.add('active');
+      b.style.setProperty('--dur', (0.3 + Math.random() * 0.5).toFixed(2) + 's');
+      b.style.height = (8 + Math.random() * 32) + 'px';
+      b.style.animationDelay = (Math.random() * 0.3).toFixed(2) + 's';
+    } else {
+      b.classList.remove('active');
+      b.style.height = '3px';
+    }
+  });
+}
+
+function loadFiles(files) {
+  Array.from(files).forEach(file => {
+    const url = URL.createObjectURL(file);
+    const name = file.name.replace(/\.[^.]+$/, '');
+    playlist.push({ url, name, file });
+  });
+  renderPlaylist();
+  if (playlist.length > 0 && currentIndex === -1) {
+    loadTrack(0);
+  }
+  showToast(`${files.length} lagu ditambahkan ✓`);
+}
+
+function renderPlaylist() {
+  emptyMsg.style.display = playlist.length ? 'none' : 'block';
+  playlistItems.innerHTML = '';
+  playlist.forEach((track, i) => {
+    const div = document.createElement('div');
+    div.className = 'playlist-item' + (i === currentIndex ? ' active' : '');
+    div.innerHTML = `
+      <div class="item-num ${i === currentIndex ? 'playing' : ''}">${i === currentIndex ? '♪' : (i+1)}</div>
+      <div class="item-info">
+        <div class="item-title">${track.name}</div>
+        <div class="item-meta">audio</div>
+      </div>
+      <div class="item-dur">${track.duration || '--:--'}</div>
+    `;
+    div.onclick = () => loadTrack(i, true);
+    playlistItems.appendChild(div);
+  });
+}
+
+function loadTrack(index, autoplay = false) {
+  if (index < 0 || index >= playlist.length) return;
+  currentIndex = index;
+  const track = playlist[index];
+  audio.src = track.url;
+  trackTitle.textContent = track.name;
+  trackArtist.textContent = 'Local File';
+  artEmoji.textContent = EMOJIS[index % EMOJIS.length];
+  document.documentElement.style.setProperty('--accent', COLORS[index % COLORS.length]);
+  renderPlaylist();
+  progressBar.value = 0;
+  currentTimeEl.textContent = '0:00';
+  if (autoplay) { audio.play(); }
+}
+
+function togglePlay() {
+  if (!playlist.length) return;
+  if (audio.paused) audio.play(); else audio.pause();
+}
+
+audio.onplay = () => {
+  playBtn.textContent = '⏸';
+  artEmoji.classList.add('spinning');
+  animateBars(true);
+};
+audio.onpause = () => {
+  playBtn.textContent = '▶';
+  artEmoji.classList.remove('spinning');
+  animateBars(false);
+};
+
+audio.ontimeupdate = () => {
+  if (!audio.duration) return;
+  const pct = (audio.currentTime / audio.duration) * 100;
+  progressBar.value = pct;
+  currentTimeEl.textContent = fmt(audio.currentTime);
+};
+
+audio.onloadedmetadata = () => {
+  totalTimeEl.textContent = fmt(audio.duration);
+  playlist[currentIndex].duration = fmt(audio.duration);
+  renderPlaylist();
+};
+
+audio.onended = () => {
+  if (repeat) { audio.play(); return; }
+  nextTrack();
+};
+
+progressBar.oninput = () => {
+  if (audio.duration) audio.currentTime = (progressBar.value / 100) * audio.duration;
+};
+
+function setVolume(v) { audio.volume = v / 100; }
+
+function nextTrack() {
+  if (!playlist.length) return;
+  let next;
+  if (shuffle) {
+    next = Math.floor(Math.random() * playlist.length);
+  } else {
+    next = (currentIndex + 1) % playlist.length;
+  }
+  loadTrack(next, true);
+}
+
+function prevTrack() {
+  if (!playlist.length) return;
+  const prev = (currentIndex - 1 + playlist.length) % playlist.length;
+  loadTrack(prev, true);
+}
+
+function toggleShuffle() {
+  shuffle = !shuffle;
+  document.getElementById('shuffleBtn').style.color = shuffle ? 'var(--accent)' : '';
+  showToast(shuffle ? 'Shuffle: ON' : 'Shuffle: OFF');
+}
+
+function toggleRepeat() {
+  repeat = !repeat;
+  document.getElementById('repeatBtn').style.color = repeat ? 'var(--accent)' : '';
+  showToast(repeat ? 'Repeat: ON' : 'Repeat: OFF');
+}
+
+function fmt(s) {
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2,'0')}`;
+}
+
+// Volume default
+audio.volume = 0.8;
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// Drag & drop
+document.querySelector('.upload-area').addEventListener('dragover', e => e.preventDefault());
+document.querySelector('.upload-area').addEventListener('drop', e => {
+  e.preventDefault();
+  loadFiles(e.dataTransfer.files);
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  if (e.code === 'ArrowRight') nextTrack();
+  if (e.code === 'ArrowLeft') prevTrack();
+});
+</script>
+</body>
+</html>
